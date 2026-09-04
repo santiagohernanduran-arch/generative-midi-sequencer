@@ -7,6 +7,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -37,6 +38,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.activity.compose.BackHandler
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.generative.midi.sequencer.midi.ScaleManager
 import com.generative.midi.sequencer.midi.Step
@@ -77,6 +79,11 @@ fun MainScreen(viewModel: MainViewModel, onDispose: () -> Unit) {
     val stepLengthCustom by viewModel.stepLengthCustom.collectAsStateWithLifecycle()
     val stepLengthValue by viewModel.stepLengthValue.collectAsStateWithLifecycle()
     val selectedStep by viewModel.selectedStep.collectAsStateWithLifecycle()
+
+    // Android Back: cerrar el Step Editor antes de salir de la pantalla.
+    BackHandler(enabled = selectedStep in pattern.indices) {
+        viewModel.deselectStep()
+    }
 
     Column(
         modifier = Modifier
@@ -144,7 +151,7 @@ fun MainScreen(viewModel: MainViewModel, onDispose: () -> Unit) {
         CurrentScaleInfo(root = root, scaleName = scaleName)
         Spacer(Modifier.height(8.dp))
 
-        // ---- STEP LENGTH ----
+        // ---- STEP LENGTH (pertenece a la sección del secuenciador) ----
         SectionLabel("STEP LENGTH")
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             listOf(16, 32, 48, 64).forEach { opt ->
@@ -167,6 +174,37 @@ fun MainScreen(viewModel: MainViewModel, onDispose: () -> Unit) {
             }
         }
         Spacer(Modifier.height(8.dp))
+
+        // ---- Sequencer ----
+        SectionLabel("$stepLength STEP SEQUENCER")
+        Spacer(Modifier.height(8.dp))
+        StepGrid(
+            pattern = pattern,
+            currentStep = currentStep,
+            selectedStep = selectedStep,
+            stepLength = stepLength,
+            onTap = viewModel::selectStep,
+            onLongPress = viewModel::deleteStep
+        )
+        Spacer(Modifier.height(16.dp))
+
+        // ---- Step Editor (V2.2) ----
+        if (selectedStep in pattern.indices) {
+            StepEditor(
+                stepIndex = selectedStep,
+                step = pattern[selectedStep],
+                onClose = viewModel::deselectStep,
+                onCycleNote = viewModel::cycleSelectedStepNote,
+                onVelocityChange = { v -> viewModel.editStepVelocity(selectedStep, v) },
+                onGateChange = { p -> viewModel.editStepGatePercent(selectedStep, p) },
+                onOctaveChange = { o -> viewModel.editStepOctave(selectedStep, o) },
+                onToggleActive = { viewModel.toggleStepActive(selectedStep) },
+                onCopy = { viewModel.copyStep(selectedStep) },
+                onPaste = { viewModel.pasteStep(selectedStep) },
+                onReset = { viewModel.resetStep(selectedStep) }
+            )
+            Spacer(Modifier.height(16.dp))
+        }
 
         // ---- Generative controls ----
         SliderControl("DENSITY", density, 0..100) { viewModel.setDensity(it) }
@@ -202,36 +240,6 @@ fun MainScreen(viewModel: MainViewModel, onDispose: () -> Unit) {
             Switch(checked = midiClock, onCheckedChange = { viewModel.setMidiClock(it) })
         }
         Spacer(Modifier.height(16.dp))
-
-        // ---- Sequencer ----
-        SectionLabel("$stepLength STEP SEQUENCER")
-        Spacer(Modifier.height(8.dp))
-        StepGrid(
-            pattern = pattern,
-            currentStep = currentStep,
-            selectedStep = selectedStep,
-            stepLength = stepLength,
-            onTap = viewModel::selectStep,
-            onLongPress = viewModel::deleteStep
-        )
-        Spacer(Modifier.height(16.dp))
-
-        // ---- Step Editor (V2.2) ----
-        if (selectedStep in pattern.indices) {
-            StepEditor(
-                stepIndex = selectedStep,
-                step = pattern[selectedStep],
-                onCycleNote = viewModel::cycleSelectedStepNote,
-                onVelocityChange = { v -> viewModel.editStepVelocity(selectedStep, v) },
-                onGateChange = { p -> viewModel.editStepGatePercent(selectedStep, p) },
-                onOctaveChange = { o -> viewModel.editStepOctave(selectedStep, o) },
-                onToggleActive = { viewModel.toggleStepActive(selectedStep) },
-                onCopy = { viewModel.copyStep(selectedStep) },
-                onPaste = { viewModel.pasteStep(selectedStep) },
-                onReset = { viewModel.resetStep(selectedStep) }
-            )
-            Spacer(Modifier.height(16.dp))
-        }
 
         // ---- Buttons ----
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
@@ -466,6 +474,7 @@ private fun StepCell(
 private fun StepEditor(
     stepIndex: Int,
     step: Step,
+    onClose: () -> Unit,
     onCycleNote: () -> Unit,
     onVelocityChange: (Int) -> Unit,
     onGateChange: (Int) -> Unit,
@@ -487,12 +496,22 @@ private fun StepEditor(
             .padding(12.dp)
     ) {
         Column {
-            Text(
-                "STEP ${stepIndex + 1}",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    "STEP ${stepIndex + 1}",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(Modifier.weight(1f))
+                OutlinedButton(
+                    onClick = onClose,
+                    modifier = Modifier.size(44.dp),
+                    contentPadding = PaddingValues(0.dp)
+                ) {
+                    Text("✕", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                }
+            }
             Spacer(Modifier.height(10.dp))
 
             // NOTE

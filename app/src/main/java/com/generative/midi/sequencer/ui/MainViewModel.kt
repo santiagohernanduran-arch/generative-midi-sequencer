@@ -674,9 +674,14 @@ class MainViewModel(
     // parámetros se editan desde el Step Editor. Todos los cambios preservan la
     // nota/velocidad/gate/octava y el estado ACTIVE/REST de cada paso.
 
-    /** Selecciona un paso para el Step Editor (-1 para deseleccionar). */
+    /** Selecciona un paso para el Step Editor (-1 para deseleccionar).
+     *  Tocar el paso ya seleccionado lo deselecciona (toggle). */
     fun selectStep(index: Int) {
-        _selectedStep.value = if (index in _pattern.value.indices) index else -1
+        _selectedStep.value = when {
+            index !in _pattern.value.indices -> -1
+            _selectedStep.value == index -> -1    // toggle: cerrar el editor
+            else -> index
+        }
     }
 
     fun deselectStep() {
